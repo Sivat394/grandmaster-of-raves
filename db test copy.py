@@ -12,9 +12,6 @@ from tokens import is_allowed
 import tokens
 from methods import generate_embeds, add_raver_to_event, add_to_queue, trading_board, remove_from_queue, remove_raver, move_raver_down, move_raver_up,is_raver_in_queue
 
-
-
-
 class Buttons(discord.ui.View):
     def __init__(self, event_id, user, *, timeout=180): 
         super().__init__(timeout=timeout)
