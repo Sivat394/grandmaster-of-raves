@@ -335,8 +335,7 @@ async def bane(ctx, event_id:int):
 async def sync(ctx):
     #print(ctx.author.id)
     if ctx.author.id in tokens.allowed_users:
-         guilds = [discord.Object(id='899713834535780382')]
-
+         guilds = [discord.Object(id='899713834535780382'),discord.Object(id='595366390870048768'),discord.Object(id='1080706918869372948')]
          for guild in guilds:
              #print(f'Syncing {guild.id}')
              bot.tree.copy_global_to(guild=guild)
