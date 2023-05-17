@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import DateTime
 from datetime import datetime, timedelta
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from db_create import get_19hz, update_db
 import discord.components
 from sqlclass import Event, Raver
@@ -104,13 +104,50 @@ engine = create_engine('sqlite:///rave.db')
 Session = sessionmaker(bind=engine)
 session = Session()
 
+@tasks.loop(minutes=3)  # Run the task once every 24 hours
+# Check for new events in the database
+async def check_new_events():
+    now = datetime.datetime.now()
+    two_weeks_out = now + datetime.timedelta(minutes=3)
+
+    # Example: Retrieve upcoming events from the database
+    upcoming_events = get_upcoming_events_from_db(two_weeks_out)
+
+    for event in upcoming_events:
+        # Create a new channel for the event
+        forum = bot.get_channel(1086408274464743515)
+        existing_channel = discord.utils.get(category.channels, name=event.event_name)
+        
+        if existing_channel:
+            print(f"Channel '{event.event_name}' already exists. Skipping creation.")
+            continue
+        
+        await forum.create_thread(name=event.event_name,content=f"test",allowed_mentions=discord.mentions.AllowedMentions(users=True),reason='New event')
+        
+        
+        category = discord.utils.get(guild.categories, name="Event Channels")  # Replace with your category name
+        channel = await guild.create_text_channel(event.event_name, category=category)
+
+        # Create a new thread in the channel
+        thread = await channel.create_thread(name=event.event_name)
+
+        # Optionally, you can add additional content or messages to the thread
+        await thread.send(f"Thread for {event.event_name} is created!")
+
+def get_upcoming_events_from_db(end_date):
+    start_date = datetime.datetime.now()
+
+    # Example using SQLAlchemy query
+    upcoming_events = session.query(Event).filter(Event.date2 >= start_date, Event.date2 <= end_date).all()
+
+    return upcoming_events
 
 @bot.hybrid_command()
 @is_allowed()
 async def forum_test(ctx, test:str):
      # thread channel ID
     forum = bot.get_channel(1086408274464743515)
-    await forum.create_thread(name="test",content=f"test <@{ctx.author.id}>",allowed_mentions=discord.mentions.AllowedMentions(users=True),reason='New event')
+   
 
 
 @bot.event

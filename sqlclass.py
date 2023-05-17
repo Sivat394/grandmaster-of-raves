@@ -34,6 +34,43 @@ class Raver(Base):
         self.guild = guild
         self.queue_pos = queue_pos
 
+    def move_up(self,session):
+        event_id = self.event_id
+        # Replace with your database session creation
+
+        # Get the current position of the raver in the queue
+        current_pos = self.queue_pos
+
+        # Retrieve the raver with the next lower position in the queue
+        raver_above = session.query(Raver).filter(Raver.event_id == event_id, Raver.queue_pos < current_pos) \
+            .order_by(Raver.queue_pos.desc()).first()
+
+        if raver_above:
+            # Swap the positions of the current raver and the raver above
+            temp_pos = self.queue_pos
+            self.queue_pos = raver_above.queue_pos
+            raver_above.queue_pos = temp_pos
+
+            session.commit()
+    def move_down(self,session):
+        event_id = self.event_id
+       
+
+        # Get the current position of the raver in the queue
+        current_pos = self.queue_pos
+
+        # Retrieve the raver with the next higher position in the queue
+        raver_below = session.query(Raver).filter(Raver.event_id == event_id, Raver.queue_pos > current_pos) \
+            .order_by(Raver.queue_pos.asc()).first()
+
+        if raver_below:
+            # Swap the positions of the current raver and the raver below
+            temp_pos = self.queue_pos
+            self.queue_pos = raver_below.queue_pos
+            raver_below.queue_pos = temp_pos
+
+            session.commit()
+
 # Define the Event class
 class Event(Base):
     __tablename__ = 'events'

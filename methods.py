@@ -101,13 +101,12 @@ def remove_from_queue(event_id, raver):
         return False
 
     # remove the raver from the queue
-    event.queue.remove(raver)
-    raver.queue_pos = None
+    raver.queue_pos = 999 #can't be None and 0 would place them at the top.
 
     # update the queue positions of other ravers
     for other_raver in event.ravers:
         if other_raver.queue_pos > queue_pos:
-            other_raver.move_up()
+            move_raver_up(event_id, other_raver)
 
     session.commit()
     return True
@@ -123,11 +122,11 @@ def move_raver_up(event_id, raver):
         return False
 
     # move the raver up in the queue
-    raver.move_up()
+    raver.move_up(session)
     session.commit()
 
     # update the queue positions of other ravers
-    for other_raver in event.queue:
+    for other_raver in event.ravers:
         if other_raver != raver and other_raver.queue_pos < queue_pos:
             other_raver.move_down()
 
@@ -145,7 +144,7 @@ def move_raver_down(event_id, raver):
         return False
 
     # move the raver down in the queue
-    raver.move_down()
+    raver.move_down(session)
     session.commit()
 
     # update the queue positions of other ravers
@@ -182,9 +181,9 @@ def add_to_queue(event_id, raver):
         queue_pos = 1
 
     # Create a new Raver and add to the session
-    new_raver = Raver(discord_id=discord_id, event_id=event_id, tickets='Buying', attending='No', queue_pos=queue_pos)
+    new_raver = Raver(discord_id=raver.discord_id, event_id=event_id, tickets='Buying', attending='No', queue_pos=queue_pos)
     
     session.add(new_raver)
     session.commit()
 
-    return f"Raver <@{discord_id}> added to the queue at position {queue_pos}"    
+    return f"Raver <@{raver.discord_id}> added to the queue at position {queue_pos}"    
