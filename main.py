@@ -97,6 +97,7 @@ emoji_tag = []
 ## attending(no,going,hosting,playing) tickets(accquired,buying)
 ## Bot shit
 intents = discord.Intents.default()
+intents.members = True
 intents.message_content = True
 bot = commands.Bot(command_prefix='.', intents=intents)
 # create an engine to connect to a SQLite database
@@ -104,43 +105,53 @@ engine = create_engine('sqlite:///rave.db')
 Session = sessionmaker(bind=engine)
 session = Session()
 
-@tasks.loop(minutes=3)  # Run the task once every 24 hours
-# Check for new events in the database
-async def check_new_events():
-    now = datetime.datetime.now()
-    two_weeks_out = now + datetime.timedelta(minutes=3)
 
+@tasks.loop(hours=24)  # Run the task once every 24 hours
+async def check_events():
+    print("new_forums")
+    now = datetime.now()
+    two_weeks_out = now + timedelta(days=21)
     # Example: Retrieve upcoming events from the database
     upcoming_events = get_upcoming_events_from_db(two_weeks_out)
-
+    forum = bot.get_channel(1107834622424907836)
+    thread_names = []
+    for thread in forum.threads:
+        thread_names.append(thread.name)
     for event in upcoming_events:
-        # Create a new channel for the event
-        forum = bot.get_channel(1086408274464743515)
-        existing_channel = discord.utils.get(category.channels, name=event.event_name)
-        
-        if existing_channel:
+        if event.event_name.strip() in thread_names:
             print(f"Channel '{event.event_name}' already exists. Skipping creation.")
             continue
-        
-        await forum.create_thread(name=event.event_name,content=f"test",allowed_mentions=discord.mentions.AllowedMentions(users=True),reason='New event')
-        
-        
-        category = discord.utils.get(guild.categories, name="Event Channels")  # Replace with your category name
-        channel = await guild.create_text_channel(event.event_name, category=category)
 
-        # Create a new thread in the channel
-        thread = await channel.create_thread(name=event.event_name)
-
-        # Optionally, you can add additional content or messages to the thread
-        await thread.send(f"Thread for {event.event_name} is created!")
+        event_id = event.id
+        ravers = session.query(Raver).filter_by(event_id=event_id).all()
+        raver_text =''
+        print(ravers)
+        for raver in ravers:
+            raver_text = raver_text + f'<@{raver.discord_id}>\n'
+        print(raver_text)
+        if event.link:
+            thread = await forum.create_thread(name=event.event_name,content=event.link,reason='New event')
+        else:
+            thread = await forum.create_thread(name=event.event_name,content='test',reason='New event')
+        await thread.thread.send(content=raver_text,allowed_mentions=discord.mentions.AllowedMentions(users=True))
 
 def get_upcoming_events_from_db(end_date):
-    start_date = datetime.datetime.now()
+    start_date = datetime.now()
 
     # Example using SQLAlchemy query
+    
     upcoming_events = session.query(Event).filter(Event.date2 >= start_date, Event.date2 <= end_date).all()
+    events = []
+    for event in upcoming_events:
+        if event.get_raver_count() > 0:
+            events.append(event)
 
-    return upcoming_events
+    for event in events:  
+        print(event.event_name)
+
+    return events
+
+
 
 @bot.hybrid_command()
 @is_allowed()
@@ -158,11 +169,14 @@ async def on_ready():
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 @discord.app_commands.describe(discord_id = "a users discord ID, get it by @ing them and using a \ before it")
 @is_allowed()
-async def add_to_queue(ctx, event_id:int, discord_id:int):
-       results = session.query(Event).filter_by(id=discord_id).all()
-       raver = session.query(Raver).filter_by(event_id=event_id, id=discord_id).first()
-
-       await ctx.send("Event Modified",ephemeral=True)
+async def add_queue(ctx, event_id:int, discord_id:str):
+       guild = ctx.message.author.guild
+       raver_disc = guild.get_member(int(discord_id))
+       
+       print(raver_disc.id)
+       
+       
+       add_to_queue(event_id, raver_disc)
        await ctx.send(f"ADDED",ephemeral=True)
 
 @bot.hybrid_command(name="rave", description="Look up parties", help="keep the name in the black box")
@@ -175,6 +189,7 @@ async def rave(ctx, event:str):
 
     # Sending a message containing our view
     await ctx.send('an event', view=view, ephemeral=True)
+
 @bot.hybrid_command(name="addevent", description="add events")
 @discord.app_commands.describe(name = "Event Name")
 @discord.app_commands.describe(venue = "Venue Name")
@@ -189,9 +204,11 @@ async def addevent(ctx, name:str, venue:str,tags:str,date2:str,date:str):
        session.commit()
        await ctx.send("Event Modified",ephemeral=True)
        await ctx.send(f"ADDED {name} @ {venue} on @ {date}",ephemeral=True)
+
 @bot.hybrid_command(name="modtags", description="modifys an event tags - mod only")
 @discord.app_commands.describe(tags = "Genre/Event Tags to be added")   
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
+
 async def modtags(ctx, event_id:int, tags:str):
     if ctx.author.id in tokens.allowed_users:
        results = session.query(Event).filter_by(id=event_id).all()
@@ -201,6 +218,8 @@ async def modtags(ctx, event_id:int, tags:str):
        await ctx.send("Event Modified",ephemeral=True)
     else:
         await ctx.send("You're not authorized to use this",ephemeral=True)
+
+
 @bot.hybrid_command(name="modage", description="modifys an event tags - mod only")
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 @discord.app_commands.describe(age = "minimum age or all ages")
@@ -254,6 +273,8 @@ async def modlink(ctx, event_id:int, link:str):
        await ctx.send("Event Modified",ephemeral=True)
     else:
        await ctx.send("You're not authorized to use this",ephemeral=True)
+
+
 @bot.hybrid_command(name="moddate", description="modifys event's date - mod only")
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 @discord.app_commands.describe(date = "date in Month D (Time)")
@@ -266,6 +287,8 @@ async def modedate(ctx, event_id:int, date:str):
        await ctx.send("Date Modified",ephemeral=True)
     else:
        await ctx.send("You're not authorized to use this",ephemeral=True)
+
+
 @bot.hybrid_command(name="modevent", description="mods event name- mod only")
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 @discord.app_commands.describe(new_name = "New Name of Event")
@@ -278,6 +301,8 @@ async def modevent(ctx, event_id:int, new_name:str):
        await ctx.send("Event Modified",ephemeral=True)
     else:
        await ctx.send("You're not authorized to use this",ephemeral=True)
+
+
 @bot.hybrid_command(name="rmid", description="mods events - mod only")
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 async def rmid(ctx, event_id:int):
@@ -288,6 +313,8 @@ async def rmid(ctx, event_id:int):
        await ctx.send("Removed",ephemeral=True)
     else:
        await ctx.send("You're not authorized to use this",ephemeral=True)
+
+
 @bot.hybrid_command(name="events", description="Shows events from 19hz")
 async def events(ctx):
     session = Session()
@@ -317,6 +344,8 @@ async def events(ctx):
             await msg.remove_reaction(reaction, user)
         except:
             break
+
+
 @bot.hybrid_command(name="search", description="Searches events by name")
 @discord.app_commands.describe(event = "Name of Event to search for, works with partial matches")
 async def search(ctx, event:str):
@@ -334,6 +363,7 @@ async def search(ctx, event:str):
         await ctx.send(embed=embed,ephemeral=True)
        else:
          await ctx.send(f"No events found matching {args[0]}",ephemeral=True)
+
 @bot.hybrid_command(name="dates", description="Searches events by date in m/d/y format ")
 @discord.app_commands.describe(date = "date in m/d/y format")
 async def dates(ctx, date:str):
@@ -349,6 +379,7 @@ async def dates(ctx, date:str):
         await ctx.send(embed=embed,ephemeral=True)
        else:
          await ctx.send(f"No events found matching {args[0]}",ephemeral=True)
+
 @bot.hybrid_command(name="update", description="updates event db - mod only")
 async def update(ctx):
     #print(ctx.author.id)
@@ -358,6 +389,7 @@ async def update(ctx):
         await ctx.send('updating', ephemeral=True)
     else:
        await ctx.send("You're not authorized to use this",ephemeral=True)
+
 @bot.hybrid_command(name="ban_event",description="prevents event from showing up on duplicates - mod only")
 @discord.app_commands.describe(event_id = "ID for event (found in /search results in parentesis)")
 async def bane(ctx, event_id:int):
@@ -372,16 +404,22 @@ async def bane(ctx, event_id:int):
 async def sync(ctx):
     #print(ctx.author.id)
     if ctx.author.id in tokens.allowed_users:
-         guilds = [discord.Object(id='899713834535780382'),discord.Object(id='595366390870048768'),discord.Object(id='1080706918869372948')]
+         guilds = [discord.Object(id='899713834535780382')]#,discord.Object(id='595366390870048768'),discord.Object(id='1080706918869372948')]
          for guild in guilds:
-             #print(f'Syncing {guild.id}')
+             print(f'Syncing {guild.id}')
              bot.tree.copy_global_to(guild=guild)
              await bot.tree.sync(guild=guild)
     else:
         ctx.send("You're not authorized to use this",ephemeral=True)
 
 
+@bot.hybrid_command(name="setuphook", description="test")
+async def setup_hook(ctx):
+    check_events.start()
+
+
 bot.run(tokens.token2)
+
 
 
 

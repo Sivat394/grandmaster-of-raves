@@ -30,7 +30,7 @@ class Raver(Base):
     guild = Column(String)
     event_id = Column(Integer, ForeignKey('events.id'))
     queue_pos = Column(Integer)
-   
+    
     event = relationship('Event', back_populates='ravers')
     
     def __init__(self, username, discord_id, attending, tickets,event_id,price,guild):
@@ -57,6 +57,7 @@ class Event(Base):
     Price     = Column(String)
     Age       = Column(String)
     banned    = Column(Boolean)
+    region = Column(String)
     ravers = relationship('Raver', back_populates='event')
     
     def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned):
@@ -72,10 +73,12 @@ class Event(Base):
 # Create the database schema
 Base.metadata.create_all(engine)
 
+region_links = [("BayArea",'https://19hz.info/eventlisting_BayArea.php'),('LA','https://19hz.info/eventlisting_LosAngeles.php'),('Texas','https://19hz.info/eventlisting_Texas.php'),('Florida','https://19hz.info/eventlisting_Miami.php'),('Atlanta','https://19hz.info/eventlisting_Atlanta.php'),('Detroit','https://19hz.info/eventlisting_Detroit.php'),('Seattle','https://19hz.info/eventlisting_Seattle.php'),('DC','https://19hz.info/eventlisting_DC.php'),('Iowa','https://19hz.info/eventlisting_Iowa.php'),('Chicago','https://19hz.info/eventlisting_CHI.php'),('Boston','https://19hz.info/eventlisting_Massachusetts.php'),('Vegas','https://19hz.info/eventlisting_LasVegas.php'),('Pheonix','https://19hz.info/eventlisting_Phoenix.php'),('PNW','https://19hz.info/eventlisting_PNW.php')]
+
+
 #get the website data to use
-def get_19hz(): 
-    url = "https://19hz.info/eventlisting_Massachusetts.php"
-    
+def get_19hz(url): 
+      
     # Send a request to the website and get the HTML content
     response = requests.get(url)
     html_content = response.text
@@ -117,30 +120,32 @@ def get_19hz():
     return df.drop(0)
 
 
-def update_db(lol,session):
- for row in lol.itertuples():
-  
-   name_venue =      row[2]
-   name_venue =      name_venue.split('@')
-   event_name =      name_venue[0]
-   venue =           name_venue[1].split(')')[0]+')'
-   date =            row[1].split('(')[0]
-   date2=            datetime.strptime(row[7], '%Y/%m/%d')
-   tags =            row[3]
-   link =            row[6]
-   organizer =       row[5]
-   event =           Event(event_name,venue,tags,date2,date,link,organizer,False)
-   existing_event =  session.query(Event).filter_by(venue=venue, date=date).all()
-   yesterday = datetime.now() + timedelta(days=-1)
-   
-   if (date2 == yesterday):
-       event = existing_event
-   elif len(existing_event) == 1:
-       event = existing_event  
-   else:
-       if len(event.event_name)> 25: print("larger than 25")
-       print(f'added {event.event_name}')
-       session.add(event)
+def update_db(lol,session,region):
+ 
+    for row in lol.itertuples():
+     
+      name_venue =      row[2]
+      name_venue =      name_venue.split('@')
+      event_name =      name_venue[0]
+      venue =           name_venue[1].split(')')[0]+')'
+      date =            row[1].split('(')[0]
+      date2=            datetime.strptime(row[7], '%Y/%m/%d')
+      tags =            row[3]
+      link =            row[6]
+      organizer =       row[5]
+      event =           Event(event_name,venue,tags,date2,date,link,organizer,False)
+      existing_event =  session.query(Event).filter_by(venue=venue, date=date).all()
+      yesterday = datetime.now() + timedelta(days=-1)
+      region = region
+      
+      if (date2 == yesterday):
+          event = existing_event
+      elif len(existing_event) == 1:
+          event = existing_event  
+      else:
+          if len(event.event_name)> 25: print("larger than 25")
+          print(f'added {event.event_name}')
+          session.add(event)
 
 
 def remove_past_events(session):
@@ -153,8 +158,11 @@ def remove_past_events(session):
     session.commit()
 
 session = Session()
-lol = get_19hz()
-update_db(lol,session)
+
+
+for link in region_links:
+    lol = get_19hz(link[1])
+    update_db(lol,session,link[0])
 remove_past_events(session=session)
 
 

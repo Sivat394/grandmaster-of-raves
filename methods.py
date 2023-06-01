@@ -63,7 +63,7 @@ def embed_raver(status,event_id):
         embed.add_field(name='',value=f"{text}", inline=False)
         embed.set_footer(text="Grandmaster is in beta")
     return embed
-def add_raver_to_event(user, attending, tickets, event_id, price):
+def add_raver_to_event(user, attending, tickets, event_id, price,queue_pos):
     raver_name = user.name
     raver_id = user.id
     guild = user.guild.id
@@ -75,16 +75,21 @@ def add_raver_to_event(user, attending, tickets, event_id, price):
         raver.tickets = tickets
         raver.event_id = event_id
         raver.price = price
+        raver.queue_pos= queue_pos
         session.commit()
-        return raver
-        #print(f'{raver.username} added to {event.event_name} at {event.venue} on {event.date}')
+        print(f'{raver.username} added to {event.event_name} at {event.venue} on {event.date}')
 
+        return raver
+        
     else:
          new_raver = Raver(username=raver_name, discord_id=raver_id, attending=attending, tickets=tickets,event_id=event_id, price=price,guild=guild,queue_pos=0)
          event.ravers.append(new_raver)
          session.commit()
+         print(f'{new_raver.username} added to {event.event_name} at {event.venue} on {event.date}')
          return new_raver
-         #print(f'{raver.username} added to {event.event_name} at {event.venue} on {event.date}')
+        
+
+
 def remove_raver(raver,event_id,guild):
     raver = session.query(Raver).filter_by(username=raver, event_id=event_id, guild=guild).first()
     session.delete(raver)
@@ -162,14 +167,14 @@ def is_raver_in_queue(event_id, raver):
         if queued_raver.discord_id == raver.discord_id:
             return True
     return False
-def add_to_queue(event_id, raver):
+def add_to_queue(event_id, user):
     # Check if the event exists
     event = session.query(Event).filter_by(id=event_id).first()
     if not event:
         return "Event not found"
 
     # Check if the Raver is already in the queue
-    raver = session.query(Raver).filter_by(event_id=event_id, discord_id=raver.discord_id).first()
+    raver = session.query(Raver).filter_by(queue_pos=True, event_id=event_id, discord_id=user.id).first()
     if raver:
         return "Raver is already in the queue"
 
@@ -181,9 +186,10 @@ def add_to_queue(event_id, raver):
         queue_pos = 1
 
     # Create a new Raver and add to the session
-    new_raver = Raver(discord_id=raver.discord_id, event_id=event_id, tickets='Buying', attending='No', queue_pos=queue_pos)
-    
-    session.add(new_raver)
-    session.commit()
+    if raver:
+        raver = add_raver_to_event(user = user , event_id=event_id, tickets='Buying', attending='No', queue_pos=queue_pos,price=raver.price)
+    else:
+        raver = add_raver_to_event(user = user , event_id=event_id, tickets='Buying', attending='No', queue_pos=queue_pos,price=0)
+
 
     return f"Raver <@{raver.discord_id}> added to the queue at position {queue_pos}"    

@@ -5,6 +5,9 @@ from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
 import pandas as pd
 
+engine = create_engine('sqlite:///rave.db')
+Session = sessionmaker(bind=engine)
+session = Session()
 
 # Create a base class for declarative class definitions
 Base = declarative_base()
@@ -85,6 +88,7 @@ class Event(Base):
     Price     = Column(String)
     Age       = Column(String)
     banned    = Column(Boolean)
+    region = Column(String)
     ravers = relationship('Raver', back_populates='event')
     
     def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned):
@@ -96,3 +100,8 @@ class Event(Base):
         self.link = link
         self.organizer = organizer
         self.banned = banned
+
+    def get_raver_count(self):
+       return session.query(Raver).filter_by(event_id=self.id).count()
+
+      
