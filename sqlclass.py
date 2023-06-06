@@ -91,7 +91,7 @@ class Event(Base):
     region = Column(String)
     ravers = relationship('Raver', back_populates='event')
     
-    def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned):
+    def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned,region):
         self.event_name = event_name
         self.date = date
         self.venue = venue
@@ -100,6 +100,7 @@ class Event(Base):
         self.link = link
         self.organizer = organizer
         self.banned = banned
+        self.region = region
 
     def get_raver_count(self):
        return session.query(Raver).filter_by(event_id=self.id).count()

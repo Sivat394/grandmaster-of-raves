@@ -60,7 +60,7 @@ class Event(Base):
     region = Column(String)
     ravers = relationship('Raver', back_populates='event')
     
-    def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned):
+    def __init__(self, event_name, venue, tags, date2, date,link,organizer,banned,region):
         self.event_name = event_name
         self.date = date
         self.venue = venue
@@ -69,12 +69,16 @@ class Event(Base):
         self.link = link
         self.organizer = organizer
         self.banned = banned
+        self.region = region
+        
 
 # Create the database schema
 Base.metadata.create_all(engine)
 
-region_links = [("BayArea",'https://19hz.info/eventlisting_BayArea.php'),('LA','https://19hz.info/eventlisting_LosAngeles.php'),('Texas','https://19hz.info/eventlisting_Texas.php'),('Florida','https://19hz.info/eventlisting_Miami.php'),('Atlanta','https://19hz.info/eventlisting_Atlanta.php'),('Detroit','https://19hz.info/eventlisting_Detroit.php'),('Seattle','https://19hz.info/eventlisting_Seattle.php'),('DC','https://19hz.info/eventlisting_DC.php'),('Iowa','https://19hz.info/eventlisting_Iowa.php'),('Chicago','https://19hz.info/eventlisting_CHI.php'),('Boston','https://19hz.info/eventlisting_Massachusetts.php'),('Vegas','https://19hz.info/eventlisting_LasVegas.php'),('Pheonix','https://19hz.info/eventlisting_Phoenix.php'),('PNW','https://19hz.info/eventlisting_PNW.php')]
+region_links = [("SF",'https://19hz.info/eventlisting_BayArea.php'),('LA','https://19hz.info/eventlisting_LosAngeles.php'),('TX','https://19hz.info/eventlisting_Texas.php'),('FL','https://19hz.info/eventlisting_Miami.php'),('ATL','https://19hz.info/eventlisting_Atlanta.php'),('DET','https://19hz.info/eventlisting_Detroit.php'),('SEA','https://19hz.info/eventlisting_Seattle.php'),('DC','https://19hz.info/eventlisting_DC.php'),('Iowa','https://19hz.info/eventlisting_Iowa.php'),('CHI','https://19hz.info/eventlisting_CHI.php'),('BOS','https://19hz.info/eventlisting_Massachusetts.php'),('Vegas','https://19hz.info/eventlisting_LasVegas.php'),('PHX','https://19hz.info/eventlisting_Phoenix.php'),('PNW','https://19hz.info/eventlisting_PNW.php')]
 
+for name in region_links:
+    print(name[0])
 
 #get the website data to use
 def get_19hz(url): 
@@ -120,7 +124,7 @@ def get_19hz(url):
     return df.drop(0)
 
 
-def update_db(lol,session,region):
+def update(lol,session,region):
  
     for row in lol.itertuples():
      
@@ -133,10 +137,10 @@ def update_db(lol,session,region):
       tags =            row[3]
       link =            row[6]
       organizer =       row[5]
-      event =           Event(event_name,venue,tags,date2,date,link,organizer,False)
-      existing_event =  session.query(Event).filter_by(venue=venue, date=date).all()
+      event =           Event(event_name,venue,tags,date2,date,link,organizer,False,region)
+      existing_event =  session.query(Event).filter_by(region=region,venue=venue, date=date).all()
       yesterday = datetime.now() + timedelta(days=-1)
-      region = region
+      
       
       if (date2 == yesterday):
           event = existing_event
@@ -159,11 +163,11 @@ def remove_past_events(session):
 
 session = Session()
 
-
-for link in region_links:
-    lol = get_19hz(link[1])
-    update_db(lol,session,link[0])
-remove_past_events(session=session)
+async def update_db():
+    for link in region_links:
+      lol = get_19hz(link[1])
+      update(lol,session,link[0])
+    remove_past_events(session=session)
 
 
 
